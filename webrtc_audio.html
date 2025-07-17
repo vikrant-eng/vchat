@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>V Chat</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <style>
+    body {
+      background-color: #f8f9fa;
+      padding: 20px;
+    }
+
+    #myCode {
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+
+    .status-badge.online {
+      background-color: #198754;
+    }
+
+    .status-badge.offline {
+      background-color: #6c757d;
+    }
+
+    .notification-badge {
+      background: red;
+      color: white;
+      border-radius: 50%;
+      padding: 3px 7px;
+      font-size: 12px;
+      margin-left: 5px;
+    }
+
+    .chat-message {
+      margin: 5px 0;
+      padding: 8px 12px;
+      border-radius: 15px;
+      max-width: 70%;
+      clear: both;
+      word-wrap: break-word;
+      font-size: 0.9rem;
+    }
+
+    .chat-message.self {
+      background-color: #d1e7dd;
+      /* light green */
+      float: right;
+      text-align: right;
+    }
+
+    .chat-message.other {
+      background-color: #f8f9fa;
+      /* light gray */
+      float: left;
+      text-align: left;
+    }
+
+    #remoteAudio {
+      display: none;
+    }
+
+    #fileInput {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h2 class="mb-4 text-center">V-Chat</h2>
+
+    <div class="row mb-3 justify-content-center">
+      <label class="col-sm-2 col-form-label">Your Name:</label>
+      <div class="col-sm-4"><input id="nameInput" class="form-control" placeholder="Enter name"></div>
+      <div class="col-sm-2"><button id="registerBtn" class="btn btn-primary w-100">Go Online</button></div>
+    </div>
+
+    <p>Your Code: <span id="myCode" class="text-primary">N/A</span></p>
+
+    <h4 class="mt-5 mb-3">Registered Users</h4>
+    <table class="table table-striped" id="userTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Code</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <audio id="remoteAudio" autoplay></audio>
+  </div>
+
+  <!-- Chat Modal -->
+  <div class="modal fade" id="chatModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Chat with <span id="chatWithName"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="markChatRead()"></button>
+        </div>
+        <div class="modal-body" id="chatMessages" style="height:300px; overflow-y:auto;"></div>
+        <div class="modal-footer flex-column">
+          <textarea id="chatText" class="form-control" rows="3" placeholder="Type a message..."></textarea>
+          <div class="d-flex gap-2 mt-2">
+            <button id="sendChatBtn" class="btn btn-primary">Send</button>
+            <button id="fileBtn" class="btn btn-secondary">Send File</button>
+            <input type="file" id="fileInput">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index:11">
+    <div id="toastNotification" class="toast text-bg-primary align-items-center border-0" role="alert"
+      aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body" id="toastBody"></div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // const wsUrl = "ws://192.168.1.88:8765";
+    // let ws, myName, myCode, pc, dataChannel, targetName;
+    // let hasMicrophone = false;
+    // let unreadCounts = {};
+
+    // function removeUserByCode(code) {
+    //   $('#userTable tbody tr').each(function () {
+    //     const userCode = $(this).find('td:nth-child(2)').text().trim();
+    //     if (userCode === code) {
+    //       $(this).remove();
+    //     }
+    //   });
+    // }
+
+
+
+    // $(document).ready(() => {
+    //   requestNotificationPermission();
+    //   clearOldLocalStorage(); // Clear data if it's not from today
+    //   ws = new WebSocket(wsUrl);
+
+    //   $('#registerBtn').click(() => {
+    //     const name = $('#nameInput').val().trim();
+    //     if (!name) return alert('Enter your name');
+    //     ws.send(JSON.stringify({ type: 'register', name }));
+    //   });
+
+    //   $('#sendChatBtn').click(sendChatMessage);
+    //   $('#chatText').keypress(e => {
+    //     if (e.which === 13 && !e.shiftKey) {
+    //       e.preventDefault();
+    //       sendChatMessage();
+    //     }
+    //   });
+
+
+    //   if (navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
+    //     navigator.mediaDevices.enumerateDevices().then(devices => {
+    //       hasMicrophone = devices.some(d => d.kind === 'audioinput');
+    //     });
+    //   } else {
+    //     console.warn("MediaDevices API not supported or insecure context.");
+    //   }
+
+    //   ws.onmessage = async (e) => {
+    //     const msg = JSON.parse(e.data);
+    //     if (msg.type === 'registered') {
+    //       debugger
+    //       myName = msg.name;
+    //       myCode = msg.code;
+    //       removeUserByCode(myCode)
+    //       $('#myCode').text(myCode);
+    //       $('#nameInput,#registerBtn').prop('disabled', true);
+    //       saveCurrentDateTag();
+    //     }
+    //     if (msg.type === 'user_list') {
+    //       localStorage.setItem('latestUsers', JSON.stringify(msg.users)); // ✅ Save user list
+    //       renderUserTable(msg.users);                                     // ✅ Show it
+    //     }
+    //     if (msg.type === 'offer') { targetName = msg.from; await answerCall(msg.offer); }
+    //     if (msg.type === 'answer' && pc) await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
+    //     if (msg.type === 'candidate' && pc) await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+    //   };
+    // });
+    // function requestNotificationPermission() {
+    //   if (!("Notification" in window)) {
+    //     alert("This browser does not support desktop notifications.");
+    //   } else if (Notification.permission === "default" || Notification.permission === "denied") {
+    //     Notification.requestPermission().then(permission => {
+    //       if (permission === "granted") {
+    //         console.log("Notifications allowed");
+    //       } else {
+    //         console.warn("Notifications denied");
+
+    //       }
+    //     });
+    //   }
+    // }
+    // function showBrowserNotification(title, body) {
+    //   if (Notification.permission === "granted") {
+    //     new Notification(title, {
+    //       body: body,
+    //       icon: "https://cdn-icons-png.flaticon.com/512/1827/1827392.png", // optional
+    //     });
+    //   }
+    // }
+
+
+
+
+
+    // function renderUserTable(users) {
+    //   const tbody = $('#userTable tbody').empty();
+    //   users.forEach(u => {
+    //     debugger
+    //     if (myCode == u.code)
+    //       return;
+    //     const tr = $('<tr>');
+
+    //     tr.append(`<td>${u.name}${unreadCounts[u.name] ? `<span class="notification-badge">${unreadCounts[u.name]}</span>` : ''}</td>`);
+    //     tr.append(`<td>${u.code}</td>`);
+    //     tr.append(`<td><span class="badge status-badge ${u.is_online ? 'online' : 'offline'}">${u.is_online ? 'Online' : 'Offline'}</span></td>`);
+    //     const actions = $('<td>');
+    //     if (u.is_online && u.name !== myName) {
+    //       $('<button class="btn btn-sm btn-success me-2 call-btn">Call</button>').click(() => startCall(u.name)).appendTo(actions);
+    //       $('<button class="btn btn-sm btn-primary">Chat</button>').click(() => openChat(u.name)).appendTo(actions);
+    //     }
+    //     tr.append(actions);
+    //     tbody.append(tr);
+    //   });
+    // }
+
+    // function createPeerConnection() {
+    //   const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    //   const pc = new RTCPeerConnection(config);
+    //   pc.onicecandidate = e => {
+    //     if (e.candidate) {
+    //       ws.send(JSON.stringify({ type: 'candidate', from: myName, to: targetName, candidate: e.candidate }));
+    //     }
+    //   };
+    //   pc.ontrack = e => $('#remoteAudio')[0].srcObject = e.streams[0];
+    //   pc.ondatachannel = e => { dataChannel = e.channel; setupDataChannel(); };
+    //   return pc;
+    // }
+
+
+    // async function setupLocalMedia(pc) {
+    //   if (!hasMicrophone) return;
+    //   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    //   stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    // }
+
+    // let incomingFile = null;
+    // let incomingFileBuffer = [];
+    // let incomingFileSize = 0;
+    // let receivedFileSize = 0;
+
+
+    // function setupDataChannel() {
+    //   dataChannel.onopen = () => $('#sendChatBtn').prop('disabled', false);
+
+    //   dataChannel.onmessage = e => {
+    //     if (typeof e.data === 'string') {
+    //       try {
+    //         const data = JSON.parse(e.data);
+
+    //         // Handle incoming file metadata
+    //         if (data.fileName && data.fileSize) {
+    //           incomingFile = data;
+    //           incomingFileBuffer = [];
+    //           receivedFileSize = 0;
+    //           incomingFileSize = data.fileSize;
+    //           return;
+    //         }
+
+    //         // Handle chat message
+    //         if (data.type === 'chat') {
+    //           appendChatMessage(data.sender, data.msg, true, data.msgId, 'read');
+
+    //           // Send read receipt
+    //           if (dataChannel.readyState === 'open') {
+    //             dataChannel.send(JSON.stringify({ type: 'read', msgId: data.msgId }));
+    //           }
+
+    //           showToast(`New message from ${data.sender}`);
+
+    //           if (targetName !== $('#chatWithName').text()) {
+    //             unreadCounts[targetName] = (unreadCounts[targetName] || 0) + 1;
+    //             renderUserTable(JSON.parse(localStorage.getItem('latestUsers')) || []);
+    //             showBrowserNotification("New Message", `From ${targetName}: ${data.msg}`);
+    //           }
+    //           return;
+    //         }
+
+    //         // Handle read receipt
+    //         if (data.type === 'read') {
+    //           // Update UI tick to double tick
+    //           $(`#${data.msgId}_tick`).text('✔✔');
+    //           // Update localStorage message status to 'read'
+    //           updateMessageStatus(myName, targetName, data.msgId, 'read');
+    //           return;
+    //         }
+    //       } catch (err) {
+    //         // Not a JSON message or unexpected format
+    //         // Fall through to treat as normal string message below
+    //       }
+
+    //       // If not JSON, treat as normal text message (legacy or fallback)
+    //       appendChatMessage(targetName, e.data, true);
+    //       showToast(`New message from ${targetName}`);
+    //       if (targetName !== $('#chatWithName').text()) {
+    //         unreadCounts[targetName] = (unreadCounts[targetName] || 0) + 1;
+    //         renderUserTable(JSON.parse(localStorage.getItem('latestUsers')) || []);
+    //         showBrowserNotification("New Message", `From ${targetName}: ${e.data}`);
+    //       }
+    //     } else {
+    //       // Binary chunk received (file data)
+    //       incomingFileBuffer.push(e.data);
+    //       receivedFileSize += e.data.byteLength;
+
+    //       if (receivedFileSize >= incomingFileSize) {
+    //         const blob = new Blob(incomingFileBuffer);
+    //         const url = URL.createObjectURL(blob);
+    //         const fileLink = `<a href="${url}" download="${incomingFile.fileName}">📁 ${incomingFile.fileName}</a>`;
+    //         appendChatMessage(targetName, fileLink, true);
+    //         incomingFile = null;
+    //         incomingFileBuffer = [];
+    //         receivedFileSize = 0;
+    //       }
+    //     }
+    //   };
+    // }
+
+
+    // $('#fileBtn').click(() => $('#fileInput').click());
+
+    // $('#fileInput').on('change', () => {
+    //   const file = $('#fileInput')[0].files[0];
+    //   if (!file || !dataChannel || dataChannel.readyState !== 'open') {
+    //     alert("File sending failed. Make sure you're connected.");
+    //     return;
+    //   }
+
+    //   // Send metadata first
+    //   const metadata = {
+    //     fileName: file.name,
+    //     fileSize: file.size
+    //   };
+    //   dataChannel.send(JSON.stringify(metadata));
+
+    //   // Then send the file in chunks
+    //   const chunkSize = 16 * 1024;
+    //   const fileReader = new FileReader();
+    //   let offset = 0;
+
+    //   fileReader.onload = e => {
+    //     dataChannel.send(e.target.result);
+    //     offset += e.target.result.byteLength;
+    //     if (offset < file.size) {
+    //       readSlice(offset);
+    //     } else {
+    //       appendChatMessage(myName, `📤 Sent file: ${file.name}`, true);
+    //     }
+    //   };
+
+    //   const readSlice = o => {
+    //     const slice = file.slice(o, o + chunkSize);
+    //     fileReader.readAsArrayBuffer(slice);
+    //   };
+
+    //   readSlice(0);
+    // });
+
+    // async function startCall(user) {
+    //   targetName = user;
+    //   pc = createPeerConnection();
+    //   await setupLocalMedia(pc);
+    //   dataChannel = pc.createDataChannel('chat');
+    //   setupDataChannel();
+    //   const offer = await pc.createOffer();
+    //   await pc.setLocalDescription(offer);
+    //   ws.send(JSON.stringify({ type: 'offer', from: myName, to: targetName, offer }));
+    // }
+
+    // async function answerCall(offer) {
+    //   pc = createPeerConnection();
+    //   await setupLocalMedia(pc);
+    //   await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    //   const answer = await pc.createAnswer();
+    //   await pc.setLocalDescription(answer);
+    //   ws.send(JSON.stringify({ type: 'answer', from: myName, to: targetName, answer }));
+    // }
+
+
+    // function openChat(user) {
+    //   if (user === myName) return alert("Cannot chat with yourself");
+    //   targetName = user;
+    //   $('#chatWithName').text(user);
+    //   loadChatHistory(myName, user);  // <-- fix here
+    //   $('#chatText').val('');
+    //   new bootstrap.Modal($('#chatModal')).show();
+
+    //   // Disable the send button until ready
+    //   $('#sendChatBtn').prop('disabled', true);
+
+    //   if (!dataChannel || dataChannel.readyState !== 'open') {
+    //     showToast('Connecting to user...');
+    //     startCall(user);  // Start the connection immediately
+    //   } else {
+    //     $('#sendChatBtn').prop('disabled', false); // Ready
+    //   }
+    // }
+
+    // function generateMsgId() {
+    //   return `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    // }
+
+    // function markChatRead() {
+    //   unreadCounts[targetName] = 0;
+    //   renderUserTable(JSON.parse(localStorage.getItem('latestUsers')) || []);
+    // }
+
+
+    // function appendChatMessage(sender, msg, save = true, msgId = '', status = '') {
+    //   const time = new Date().toLocaleTimeString();
+    //   const isSelf = sender === myName;
+    //   const messageClass = isSelf ? 'self' : 'other';
+
+    //   let statusTick = '';
+    //   if (isSelf && msgId) {
+    //     // Show single tick if sent, double tick if read
+    //     statusTick = `<span class="text-muted ms-2" id="${msgId}_tick">${status === 'read' ? '✔✔' : '✔'}</span>`;
+    //   }
+
+    //   let contentHtml = msg;
+
+    //   // Detect if msg is a file link and prettify it
+    //   if (msg.includes('<a href=') && msg.includes('download=')) {
+    //     const parser = new DOMParser();
+    //     const doc = parser.parseFromString(msg, 'text/html');
+    //     const link = doc.querySelector('a');
+    //     if (link) {
+    //       const fileName = link.getAttribute('download') || 'file';
+    //       const fileUrl = link.getAttribute('href');
+    //       contentHtml = `<a href="${fileUrl}" download="${fileName}" target="_blank">📁 <strong>${fileName}</strong></a>`;
+    //     }
+    //   }
+
+    //   $('#chatMessages').append(
+    //     `<div class="chat-message ${messageClass}">
+    //   <div><strong>${sender}</strong> <small>${time}</small> ${statusTick}</div>
+    //   <div>${contentHtml}</div>
+    // </div>`
+    //   ).scrollTop($('#chatMessages')[0].scrollHeight);
+
+    //   if (save && msgId) storeMessage(myName, targetName, sender, msg, msgId, status);
+    // }
+
+    // function sendChatMessage() {
+    //   const msg = $('#chatText').val().trim();
+    //   if (!msg || !dataChannel || dataChannel.readyState !== 'open') return alert('Cannot send.');
+
+    //   const msgId = generateMsgId();
+    //   const messageData = { type: 'chat', msg, msgId, sender: myName };
+
+    //   dataChannel.send(JSON.stringify(messageData));
+    //   appendChatMessage(myName, msg, true, msgId, 'sent');  // initially 'sent'
+    //   $('#chatText').val('');
+    // }
+
+    // function storeMessage(me, other, sender, msg, msgId, status = 'sent') {
+    //   const key = `chat_${[me, other].sort().join('_')}`;
+    //   const arr = JSON.parse(localStorage.getItem(key) || '[]');
+    //   arr.push({ sender, msg, time: new Date().toISOString(), msgId, status });
+    //   localStorage.setItem(key, JSON.stringify(arr));
+    // }
+    // function updateMessageStatus(me, other, msgId, newStatus) {
+    //   const key = `chat_${[me, other].sort().join('_')}`;
+    //   let arr = JSON.parse(localStorage.getItem(key) || '[]');
+    //   arr = arr.map(m => m.msgId === msgId ? { ...m, status: newStatus } : m);
+    //   localStorage.setItem(key, JSON.stringify(arr));
+    // }
+    // function loadChatHistory(me, other) {
+    //   const key = `chat_${[me, other].sort().join('_')}`;
+    //   const arr = JSON.parse(localStorage.getItem(key) || '[]');
+    //   $('#chatMessages').empty();
+    //   arr.forEach(o => appendChatMessage(o.sender, o.msg, false, o.msgId, o.status));
+
+    //   // Scroll chat container to bottom after loading all messages
+    //   const chatDiv = $('#chatMessages')[0];
+    //   chatDiv.scrollTop = chatDiv.scrollHeight;
+    // }
+    // function saveCurrentDateTag() {
+    //   const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+    //   localStorage.setItem('storageDate', today);
+    // }
+    // function clearOldLocalStorage() {
+    //   const storedDate = localStorage.getItem('storageDate');
+    //   const today = new Date().toISOString().split('T')[0];
+
+    //   if (storedDate !== today) {
+    //     localStorage.clear();  // Or selectively remove keys if needed
+    //   }
+    // }
+    // function showToast(text) {
+    //   $('#toastBody').text(text);
+    //   bootstrap.Toast.getOrCreateInstance($('#toastNotification')[0]).show();
+    // }
+  </script>
+
+
+
+  <script>
+    /// Part 1: Setup, WebSocket, and Peer Connection Helpers
+
+    const wsUrl = "ws://192.168.1.88:8765";
+    let ws, myName, myCode, pc, dataChannel, targetName;
+    let hasMicrophone = false;
+    let unreadCounts = {};
+
+    function removeUserByCode(code) {
+      $('#userTable tbody tr').each(function () {
+        const userCode = $(this).find('td:nth-child(2)').text().trim();
+        if (userCode === code) $(this).remove();
+      });
+    }
+
+    $(document).ready(() => {
+      requestNotificationPermission();
+      clearOldLocalStorage();
+      ws = new WebSocket(wsUrl);
+
+      $('#registerBtn').click(() => {
+        const name = $('#nameInput').val().trim();
+        if (!name) return alert('Enter your name');
+        ws.send(JSON.stringify({ type: 'register', name }));
+      });
+
+      $('#sendChatBtn').click(sendChatMessage);
+      $('#chatText').keypress(e => {
+        if (e.which === 13 && !e.shiftKey) {
+          e.preventDefault();
+          sendChatMessage();
+        }
+      });
+
+      navigator.mediaDevices?.enumerateDevices?.()
+        .then(devs => hasMicrophone = devs.some(d => d.kind === 'audioinput'))
+        .catch(() => console.warn("MediaDevices API not supported"));
+
+      ws.onmessage = async (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'registered') {
+          myName = msg.name;
+          myCode = msg.code;
+          removeUserByCode(myCode);
+          $('#myCode').text(myCode);
+          $('#nameInput,#registerBtn').prop('disabled', true);
+          saveCurrentDateTag();
+        }
+        if (msg.type === 'user_list') {
+          localStorage.setItem('latestUsers', JSON.stringify(msg.users));
+          renderUserTable(msg.users);
+        }
+        if (msg.type === 'offer') { targetName = msg.from; await answerCall(msg.offer); }
+        if (msg.type === 'answer' && pc) await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
+        if (msg.type === 'candidate' && pc) await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+      };
+    });
+
+    function createPeerConnection() {
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      pc.onicecandidate = e => e.candidate && ws.send(JSON.stringify({ type: 'candidate', from: myName, to: targetName, candidate: e.candidate }));
+      pc.ontrack = e => $('#remoteAudio')[0].srcObject = e.streams[0];
+      pc.ondatachannel = e => { dataChannel = e.channel; setupDataChannel(); };
+      return pc;
+    }
+
+    async function setupLocalMedia(pc) {
+      if (!hasMicrophone) return;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+    }
+
+    function requestNotificationPermission() {
+      if (!("Notification" in window)) return alert("This browser does not support notifications.");
+      if (Notification.permission === "default" || Notification.permission === "denied") {
+        Notification.requestPermission().then(p => console.log(p === "granted" ? "Notifications allowed" : "Notifications denied"));
+      }
+    }
+
+    function showBrowserNotification(title, body) {
+      if (Notification.permission === "granted")
+        new Notification(title, { body, icon: "https://cdn-icons-png.flaticon.com/512/1827/1827392.png" });
+    }
+
+
+    function renderUserTable(users) {
+      const tbody = $('#userTable tbody').empty();
+      users.forEach(u => {
+        debugger
+        if (myCode == u.code)
+          return;
+        const tr = $('<tr>');
+
+        tr.append(`<td>${u.name}${unreadCounts[u.name] ? `<span class="notification-badge">${unreadCounts[u.name]}</span>` : ''}</td>`);
+        tr.append(`<td>${u.code}</td>`);
+        tr.append(`<td><span class="badge status-badge ${u.is_online ? 'online' : 'offline'}">${u.is_online ? 'Online' : 'Offline'}</span></td>`);
+        const actions = $('<td>');
+        if (u.is_online && u.name !== myName) {
+          $('<button class="btn btn-sm btn-success me-2 call-btn">Call</button>').click(() => startCall(u.name)).appendTo(actions);
+          $('<button class="btn btn-sm btn-primary">Chat</button>').click(() => openChat(u.name)).appendTo(actions);
+        }
+        tr.append(actions);
+        tbody.append(tr);
+      });
+    }
+
+    ///DataChannel, Chat, File Transfer & Storage Logic
+
+
+
+    let incomingFile = null, incomingFileBuffer = [], incomingFileSize = 0, receivedFileSize = 0;
+
+    function setupDataChannel() {
+      dataChannel.onopen = () => $('#sendChatBtn').prop('disabled', false);
+
+      dataChannel.onmessage = e => {
+        if (typeof e.data === 'string') {
+          try {
+            const data = JSON.parse(e.data);
+
+            if (data.fileName && data.fileSize) {
+              incomingFile = data;
+              incomingFileBuffer = [];
+              receivedFileSize = 0;
+              incomingFileSize = data.fileSize;
+              return;
+            }
+            if (data.type === 'chat') {
+              appendChatMessage(data.sender, data.msg, true, data.msgId, 'sent');
+
+              // ✅ Only send read receipt if chat window is open and focused on sender
+              if ($('#chatWithName').text() === data.sender && dataChannel.readyState === 'open') {
+                dataChannel.send(JSON.stringify({ type: 'read', msgId: data.msgId }));
+                updateMessageStatus(data.sender, myName, data.msgId, 'read');  // save read status
+              }
+
+              showToast(`New message from ${data.sender}`);
+              if (data.sender !== $('#chatWithName').text()) {
+                unreadCounts[data.sender] = (unreadCounts[data.sender] || 0) + 1;
+                renderUserTable(JSON.parse(localStorage.getItem('latestUsers')) || []);
+                showBrowserNotification("New Message", `From ${data.sender}: ${data.msg}`);
+              }
+              return;
+            }
+            if (data.type === 'read') {
+               $(`#${data.msgId}_tick`).text('✔✔');
+              //updateMessageStatus(myName, targetName, data.msgId, 'read');
+            }
+          } catch { }
+
+          // Plain text fallback
+          appendChatMessage(targetName, e.data, true);
+          showToast(`New message from ${targetName}`);
+        } else {
+          incomingFileBuffer.push(e.data);
+          receivedFileSize += e.data.byteLength;
+          if (receivedFileSize >= incomingFileSize) {
+            const blob = new Blob(incomingFileBuffer);
+            const url = URL.createObjectURL(blob);
+            const fileLink = `<a href="${url}" download="${incomingFile.fileName}">📁 ${incomingFile.fileName}</a>`;
+            appendChatMessage(targetName, fileLink, true);
+            incomingFile = null;
+            incomingFileBuffer = [];
+            receivedFileSize = 0;
+          }
+        }
+      };
+    }
+
+    $('#fileBtn').click(() => $('#fileInput').click());
+    $('#fileInput').on('change', () => {
+      const file = $('#fileInput')[0].files[0];
+      if (!file || !dataChannel || dataChannel.readyState !== 'open') return alert("Cannot send file.");
+      dataChannel.send(JSON.stringify({ fileName: file.name, fileSize: file.size }));
+      const chunkSize = 16 * 1024;
+      const reader = new FileReader(); let offset = 0;
+      reader.onload = e => {
+        dataChannel.send(e.target.result);
+        offset += e.target.result.byteLength;
+        if (offset < file.size) readSlice(offset);
+        else appendChatMessage(myName, `📤 Sent file: ${file.name}`, true);
+      };
+      const readSlice = o => reader.readAsArrayBuffer(file.slice(o, o + chunkSize));
+      readSlice(0);
+    });
+
+    async function startCall(user) {
+      targetName = user;
+      pc = createPeerConnection();
+      await setupLocalMedia(pc);
+      dataChannel = pc.createDataChannel('chat');
+      setupDataChannel();
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      ws.send(JSON.stringify({ type: 'offer', from: myName, to: targetName, offer }));
+    }
+
+    async function answerCall(offer) {
+      pc = createPeerConnection();
+      await setupLocalMedia(pc);
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      ws.send(JSON.stringify({ type: 'answer', from: myName, to: targetName, answer }));
+    }
+
+    function openChat(user) {
+      if (user === myName) return alert("Cannot chat with yourself");
+      targetName = user;
+      $('#chatWithName').text(user);
+      loadChatHistory(myName, user);
+      $('#chatText').val('');
+      new bootstrap.Modal($('#chatModal')).show();
+      $('#sendChatBtn').prop('disabled', true);
+
+      // ✅ Mark messages as read
+      markChatRead();
+
+      if (!dataChannel || dataChannel.readyState !== 'open') {
+        showToast('Connecting to user...');
+        startCall(user);
+      } else {
+        $('#sendChatBtn').prop('disabled', false);
+      }
+    }
+    function markChatRead() {
+      const key = `chat_${[targetName, myName].sort().join('_')}`;
+      let arr = JSON.parse(localStorage.getItem(key) || '[]');
+      const updated = arr.map(m => {
+        if (m.sender === targetName && m.status !== 'read') {
+          // Send read receipt for each unread incoming message
+          if (dataChannel && dataChannel.readyState === 'open') {
+            dataChannel.send(JSON.stringify({ type: 'read', msgId: m.msgId }));
+          }
+          return { ...m, status: 'read' };
+        }
+        return m;
+      });
+      localStorage.setItem(key, JSON.stringify(updated));
+      renderUserTable(JSON.parse(localStorage.getItem('latestUsers')) || []);
+    }
+    function generateMsgId() {
+      return `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    }
+
+    function appendChatMessage(sender, msg, save = true, msgId = '', status = 'sent') {
+      const time = new Date().toLocaleTimeString();
+      const isSelf = sender === myName;
+      const cls = isSelf ? 'self' : 'other';
+      const idAttr = msgId ? `id="${msgId}_tick"` : '';
+      const tick = isSelf && msgId ? `<span class="small" ${idAttr}>${status === 'read' ? '✔✔' : '✔'}</span>` : '';
+      let html = msg;
+      if (msg.includes('<a href=') && msg.includes('download=')) {
+        const p = new DOMParser().parseFromString(msg, 'text/html');
+        const a = p.querySelector('a');
+        html = `<a href="${a.href}" download="${a.download}" target="_blank">📁 <strong>${a.download}</strong></a>`;
+      }
+      $('#chatMessages').append(
+        `<div class="chat-message ${cls}">
+      <div><strong>${sender}</strong> <small>${time}</small> ${tick}</div>
+      <div>${html}</div>
+    </div>`
+      ).scrollTop($('#chatMessages')[0].scrollHeight);
+      if (save && msgId) storeMessage(myName, targetName, sender, msg, msgId, status);
+    }
+
+    function sendChatMessage() {
+      const msg = $('#chatText').val().trim();
+      if (!msg || !dataChannel || dataChannel.readyState !== 'open') return alert('Cannot send.');
+      const msgId = generateMsgId();
+      const data = { type: 'chat', msg, msgId, sender: myName };
+      dataChannel.send(JSON.stringify(data));
+      appendChatMessage(myName, msg, true, msgId, 'sent');
+      $('#chatText').val('');
+    }
+
+    function storeMessage(me, other, sender, msg, msgId, status = 'sent') {
+      const key = `chat_${[me, other].sort().join('_')}`;
+      const arr = JSON.parse(localStorage.getItem(key) || '[]');
+      arr.push({ sender, msg, time: new Date().toISOString(), msgId, status });
+      localStorage.setItem(key, JSON.stringify(arr));
+    }
+
+    function updateMessageStatus(me, other, msgId, newStatus) {
+      const key = `chat_${[me, other].sort().join('_')}`;
+      const arr = JSON.parse(localStorage.getItem(key) || '[]');
+      const upd = arr.map(m => m.msgId === msgId ? { ...m, status: newStatus } : m);
+      localStorage.setItem(key, JSON.stringify(upd));
+    }
+
+    function loadChatHistory(me, other) {
+      const key = `chat_${[me, other].sort().join('_')}`;
+      const arr = JSON.parse(localStorage.getItem(key) || '[]');
+      $('#chatMessages').empty();
+      arr.forEach(o => appendChatMessage(o.sender, o.msg, false, o.msgId, o.status));
+      ($('#chatMessages')[0]).scrollTop = $('#chatMessages')[0].scrollHeight;
+    }
+
+    function saveCurrentDateTag() {
+      localStorage.setItem('storageDate', new Date().toISOString().split('T')[0]);
+    }
+
+    function clearOldLocalStorage() {
+      const d = localStorage.getItem('storageDate');
+      if (d !== new Date().toISOString().split('T')[0]) localStorage.clear();
+    }
+
+    function showToast(text) {
+      $('#toastBody').text(text);
+      bootstrap.Toast.getOrCreateInstance($('#toastNotification')[0]).show();
+    }
+  </script>
+
+</body>
+
+</html>
